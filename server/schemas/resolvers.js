@@ -1,7 +1,21 @@
+const { AuthenticationError } = require('apollo-server-express');
+const { signToken } = require('../utils/auth');
 const { User, Thought } = require('../models');
 
 const resolvers = {
     Query: {
+        me: async (parent, args, context) => {
+            if (context.user) {
+                const userData = await User.findOne({ _id: context.user._id })
+                    .select('-__v -password')
+                    .populate('thoughts')
+                    .populate('friends');
+
+                return userData;
+            }
+
+            throw new AuthenticationError('Not logged in');
+        },
         thoughts: async (parent, { username }) => { // This is supposed to match the name of the query in typeDefs; parent, even if empty, is required to use the second argument, args (which is destructured to username here)
             const params = username ? { username } : {}; // if username exists, set params to object named username, otherwise return empty object (ternary operator = ?)
             return Thought.find(params).sort({ createdAt: -1 }); // This sort() orders the returned data by createdAt in descending order (-1); This runs regardless of whether params has a value or not
@@ -22,6 +36,72 @@ const resolvers = {
                 .select('-__v -password')
                 .populate('friends')
                 .populate('thoughts');
+        },
+        
+    },
+    Mutation: {
+        addUser: async (parent, args) => {
+            const user = await User.create(args);
+            const token = signToken(user);
+
+            return user;
+        },
+        login: async (parent, { email, password }) => {
+            const user = await User.findOne({ email });
+
+            if (!user) {
+                throw new AuthenticationError('Incorrect credentials');
+            }
+
+            const correctPw  = await user.isCorrectPassword(password);
+
+            if (!correctPw) {
+                throw new AuthenticationError('Inccorect credentials');
+            }
+
+            const token = signToken(user);
+            return { token, user };
+        },
+        addThought: async (parent, args, context) => {
+            if (context.user) {
+                const thought = await Thought.create({ ...args, username: context.user.username });
+
+                await User.findByIdAndUpdate(
+                    { _id: context.user._id },
+                    { $push: { thoughts: thoughts._id } },
+                    { new: true }
+                );
+
+                return thought;
+            }
+
+            throw new AuthenticationError('You need to be logged in!');
+        },
+        addReaction: async (parent, { thoughtId, reactionBody }, context) => {
+            if (context.user) {
+                const updatedThought = await Thought.findOneAndUpdate(
+                    { _id: thoughtId },
+                    { $push: { reactions: { reactionBody, username: context.user.username } } },
+                    { new: true, runValidators: true }
+                );
+
+                return updatedThought;
+            }
+
+            throw new AuthenticationError('You need to be logged in!');
+        },
+        addFriend: async (parent, { friendId }, context) => {
+            if (contex.user) {
+                const updatedUser = await User.findOneAndUpdate(
+                    { _id: context.user._id },
+                    { $addToSet: { friends: friendId } }, // use addToSet instead of push to prevent duplicates (a user can't be friends with the same person twice)
+                    { new: true }
+                ).populate('friends');
+
+                return updatedUser;
+            }
+
+            throw new AuthenticationError('You need to be logged in!');
         }
     }
 };
