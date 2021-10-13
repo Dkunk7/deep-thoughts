@@ -44,7 +44,7 @@ const resolvers = {
             const user = await User.create(args);
             const token = signToken(user);
 
-            return user;
+            return { token, user };
         },
         login: async (parent, { email, password }) => {
             const user = await User.findOne({ email });
@@ -91,7 +91,7 @@ const resolvers = {
             throw new AuthenticationError('You need to be logged in!');
         },
         addFriend: async (parent, { friendId }, context) => {
-            if (contex.user) {
+            if (context.user) {
                 const updatedUser = await User.findOneAndUpdate(
                     { _id: context.user._id },
                     { $addToSet: { friends: friendId } }, // use addToSet instead of push to prevent duplicates (a user can't be friends with the same person twice)
