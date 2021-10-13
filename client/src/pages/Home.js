@@ -14,7 +14,7 @@ const Home = () => {
   const { data: userData } = useQuery(QUERY_ME_BASIC);
 
   const thoughts = data?.thoughts || []; // this says, If data exists, store data.thoughts in thoughts, otherwise thoughts is an empty array. I think it returns an empty array until there is data to store to the variable
-  console.log(thoughts);
+  // console.log(thoughts);
 
   const loggedIn = Auth.loggedIn();
 
